@@ -1,5 +1,4 @@
-use secrecy::ExposeSecret;
-use sqlx::postgres::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use std::net::TcpListener;
 use zero2prod::configuration::get_configuration;
 use zero2prod::startup::run;
@@ -12,8 +11,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
     let connection_pool =
-        PgPool::connect_lazy(&configuration.database.connection_string().expose_secret())
-            .expect("Failed to connect to Postgres.");
+        PgPoolOptions::new().connect_lazy_with(configuration.database.connect_options());
 
     // Here we choose to bind explicitly to localhost, 127.0.0.1, for security
     // reasons. This binding may cause issues in some environments. For example,
@@ -21,7 +19,10 @@ async fn main() -> Result<(), std::io::Error> {
     // server when it is bound to WSL2's localhost interface. As a workaround,
     // you can choose to bind to all interfaces, 0.0.0.0, instead, but be aware
     // of the security implications when you expose the server on all interfaces.
-    let address = format!("{}:{}", configuration.application.host, configuration.application.port);
+    let address = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     let listener = TcpListener::bind(address)?;
     run(listener, connection_pool)?.await?;
     Ok(())
